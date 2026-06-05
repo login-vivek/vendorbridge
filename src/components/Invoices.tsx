@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { fmt, fmtD, inp, Modal, Tbl, TD, Badge, BtnPrimary, BtnSecondary, BtnGhost, PH } from "./ui";
+import { fmt, fmtD, Modal, Tbl, TD, Badge, BtnPrimary, BtnSecondary, BtnGhost, PH } from "./ui";
 
 export default function Invoices({ invoices, setInvoices, vendors, user, addLog }: any) {
   const [view, setView] = useState<any>(null);

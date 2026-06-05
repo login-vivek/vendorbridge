@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { uid, fmt, inp, FG, Badge, BtnSuccess, BtnDanger, PH } from "./ui";
 
-export default function Approvals({ approvals, setApprovals, quotations, setQuotations, rfqs, vendors, pos, setPOs, user, addLog }: any) {
+export default function Approvals({ approvals, setApprovals, quotations, setQuotations, rfqs, vendors, setPOs, user, addLog }: any) {
   const [sel, setSel]         = useState<any>(null);
   const [remarks, setRemarks] = useState("");
 

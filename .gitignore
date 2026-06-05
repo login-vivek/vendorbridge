@@ -1,0 +1,19 @@
+# dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# build output
+client/dist/
+client/.vite/
+
+# environment
+server/.env
+.env
+
+# logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

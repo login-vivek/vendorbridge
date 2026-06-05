@@ -1,24 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { fmt, inp, FG, Badge, PH } from "./ui";
 
 export default function Compare({ quotations, rfqs, vendors }: any) {
-  const [rfqId, setRfqId] = useState(rfqs[0]?.id || "");
-
   const withQuotes = rfqs.filter((r: any) => quotations.some((q: any) => q.rfqId === r.id));
-  const quotes     = quotations.filter((q: any) => q.rfqId === rfqId);
-  const minP       = quotes.length ? Math.min(...quotes.map((q: any) => q.totalPrice)) : 0;
-  const minD       = quotes.length ? Math.min(...quotes.map((q: any) => parseInt(q.delivery) || 999)) : 0;
+  const [rfqId, setRfqId] = useState(withQuotes[0]?.id || "");
+
+  // Update default selection whenever new quotes come in
+  useEffect(() => {
+    if (!rfqId && withQuotes.length > 0) {
+      setRfqId(withQuotes[0].id);
+    }
+  }, [quotations, rfqs]);
+
+  const quotes = quotations.filter((q: any) => q.rfqId === rfqId);
+  const minP   = quotes.length ? Math.min(...quotes.map((q: any) => q.totalPrice)) : 0;
+  const minD   = quotes.length ? Math.min(...quotes.map((q: any) => parseInt(q.delivery) || 999)) : 0;
 
   return (
     <div>
       <PH title="Compare Quotations" />
       <div style={{ background:"#fff", border:"1px solid #e5e7eb", borderRadius:8, padding:20, marginBottom:16 }}>
-        <FG label="Select RFQ">
+        <FG label="Select RFQ to Compare">
           <select style={{ ...inp, maxWidth:360 }} value={rfqId} onChange={e => setRfqId(e.target.value)}>
             <option value="">-- Select --</option>
-            {withQuotes.map((r: any) => <option key={r.id} value={r.id}>{r.id} — {r.title}</option>)}
+            {withQuotes.map((r: any) => (
+              <option key={r.id} value={r.id}>{r.id} – {r.title}</option>
+            ))}
           </select>
         </FG>
+        {withQuotes.length === 0 && (
+          <p style={{ color:"#9ca3af", fontSize:13, marginTop:8 }}>
+            No RFQs have received quotations yet.
+          </p>
+        )}
       </div>
 
       {rfqId && quotes.length === 0 && (
@@ -38,24 +52,15 @@ export default function Compare({ quotations, rfqs, vendors }: any) {
                     ✓ Best Price
                   </div>
                 )}
-                <div style={{ fontWeight:700, fontSize:16, color:"#111", marginBottom:2 }}>{v?.name}</div>
-                <div style={{ fontSize:12, color:"#6b7280", marginBottom:14 }}>⭐ {v?.rating} · {v?.category}</div>
-                <div style={{ background:"#f9fafb", borderRadius:6, padding:12, marginBottom:12 }}>
-                  <div style={{ fontSize:12, color:"#9ca3af" }}>Unit Price</div>
-                  <div style={{ fontSize:18, fontWeight:700, color:"#111", marginBottom:4 }}>{fmt(q.unitPrice)}</div>
-                  <div style={{ fontSize:12, color:"#9ca3af" }}>Total Amount</div>
-                  <div style={{ fontSize:22, fontWeight:800, color:isLowest ? "#16a34a" : "#2563eb" }}>{fmt(q.totalPrice)}</div>
+                <div style={{ fontWeight:700, fontSize:16, color:"#111", marginBottom:2 }}>{v?.name || q.vendorId}</div>
+                <div style={{ fontSize:12, color:"#6b7280", marginBottom:14 }}>Quote ID: {q.id}</div>
+                <div style={{ fontSize:24, fontWeight:800, color:"#111" }}>{fmt(q.totalPrice)}</div>
+                <div style={{ fontSize:12, color:"#6b7280", marginBottom:12 }}>Unit: {fmt(q.unitPrice)}</div>
+                <div style={{ fontSize:13, color: isFastest ? "#2563eb" : "#374151", fontWeight: isFastest ? 700 : 400 }}>
+                  🚚 {q.delivery} {isFastest && "(Fastest)"}
                 </div>
-                <div style={{ fontSize:13, marginBottom:6 }}>
-                  <span style={{ color:"#6b7280" }}>Delivery: </span>
-                  <span style={{ fontWeight:isFastest ? 700 : 400, color:isFastest ? "#0891b2" : "#111" }}>
-                    {isFastest ? "⚡ " : ""}{q.delivery}
-                  </span>
-                </div>
-                <Badge s={q.status} />
-                {q.notes && (
-                  <div style={{ fontSize:12, color:"#6b7280", background:"#f9fafb", borderRadius:6, padding:8, marginTop:10 }}>{q.notes}</div>
-                )}
+                {q.notes && <div style={{ fontSize:12, color:"#9ca3af", marginTop:8 }}>{q.notes}</div>}
+                <div style={{ marginTop:12 }}><Badge s={q.status} /></div>
               </div>
             );
           })}

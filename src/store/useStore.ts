@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { VENDORS0, RFQS0, QUOTES0, POS0, INVOICES0, APPROVALS0, LOGS0 } from "../data/seed";
 
-/* ─────────────────────────────────────────
-   localStorage keys
-───────────────────────────────────────── */
-const KEYS = {
+/* ══════════════════════════════════════════
+   Keys
+══════════════════════════════════════════ */
+export const STORE_KEYS = {
   vendors:    "vb_vendors",
   rfqs:       "vb_rfqs",
   quotations: "vb_quotations",
@@ -14,63 +14,121 @@ const KEYS = {
   logs:       "vb_logs",
 } as const;
 
-/* ─────────────────────────────────────────
-   helpers
-───────────────────────────────────────── */
+type StoreKey = typeof STORE_KEYS[keyof typeof STORE_KEYS];
+
+/* ══════════════════════════════════════════
+   BroadcastChannel — real-time cross-tab
+══════════════════════════════════════════ */
+const channel = typeof BroadcastChannel !== "undefined"
+  ? new BroadcastChannel("vb_realtime")
+  : null;
+
+/* ══════════════════════════════════════════
+   Helpers
+══════════════════════════════════════════ */
 function load<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);
     return raw ? (JSON.parse(raw) as T) : fallback;
-  } catch {
-    return fallback;
-  }
+  } catch { return fallback; }
 }
 
-function save(key: string, value: unknown) {
-  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore quota */ }
-}
+/* ══════════════════════════════════════════
+   Single persisted slice
 
-/* ─────────────────────────────────────────
-   persisted state factory
-───────────────────────────────────────── */
-function usePersisted<T>(key: string, seed: T) {
+   KEY DESIGN:
+   - State is updated via React setState (never directly)
+   - Saving to localStorage happens in a useEffect watching the value
+     → runs AFTER render, AFTER StrictMode double-invoke settles
+     → so we only ever save the final committed value, not the intermediate one
+   - Listeners only apply external updates (from other tabs / other slices)
+     and are guarded by a "writing" ref to avoid echo loops
+══════════════════════════════════════════ */
+function usePersisted<T>(key: StoreKey, seed: T) {
   const [val, setVal] = useState<T>(() => load(key, seed));
 
-  const set = useCallback((updater: T | ((prev: T) => T)) => {
-    setVal(prev => {
-      const next = typeof updater === "function"
-        ? (updater as (p: T) => T)(prev)
-        : updater;
-      save(key, next);
-      return next;
-    });
+  // Track whether WE are the ones writing, to ignore our own broadcast echo
+  const isWriting = useRef(false);
+
+  /* Persist to localStorage AFTER render (avoids StrictMode double-save) */
+  useEffect(() => {
+    isWriting.current = true;
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+      // Notify other slices in same tab
+      window.dispatchEvent(
+        new CustomEvent("vb-store-update", { detail: { key, value: val } })
+      );
+      // Notify other tabs
+      channel?.postMessage({ key, value: val });
+    } catch { /* quota */ }
+    // Small timeout to clear the flag after broadcasts are processed
+    const t = setTimeout(() => { isWriting.current = false; }, 50);
+    return () => clearTimeout(t);
+  }, [key, val]);  // runs only when val actually changes (after StrictMode settles)
+
+  /* Listen for external updates (other tab or other slice) */
+  useEffect(() => {
+    const onSameTab = (e: Event) => {
+      if (isWriting.current) return;   // ignore our own events
+      const ev = e as CustomEvent<{ key: string; value: unknown }>;
+      if (ev.detail.key === key) setVal(ev.detail.value as T);
+    };
+
+    const onBroadcast = (e: MessageEvent<{ key: string; value: unknown }>) => {
+      if (e.data?.key === key) setVal(e.data.value as T);
+    };
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === key && e.newValue) {
+        try { setVal(JSON.parse(e.newValue) as T); } catch { /* ignore */ }
+      }
+    };
+
+    window.addEventListener("vb-store-update", onSameTab);
+    window.addEventListener("storage", onStorage);
+    channel?.addEventListener("message", onBroadcast);
+
+    return () => {
+      window.removeEventListener("vb-store-update", onSameTab);
+      window.removeEventListener("storage", onStorage);
+      channel?.removeEventListener("message", onBroadcast);
+    };
   }, [key]);
+
+  const set = useCallback((updater: T | ((prev: T) => T)) => {
+    setVal(prev =>
+      typeof updater === "function"
+        ? (updater as (p: T) => T)(prev)
+        : updater
+    );
+    // NO save() here — saving happens in the useEffect above after render
+  }, []);
 
   return [val, set] as const;
 }
 
-/* ─────────────────────────────────────────
-   main store hook
-───────────────────────────────────────── */
+/* ══════════════════════════════════════════
+   Main store
+══════════════════════════════════════════ */
 export function useStore() {
-  const [vendors,    setVendors]    = usePersisted(KEYS.vendors,    VENDORS0);
-  const [rfqs,       setRfqs]       = usePersisted(KEYS.rfqs,       RFQS0);
-  const [quotations, setQuotations] = usePersisted(KEYS.quotations, QUOTES0);
-  const [pos,        setPOs]        = usePersisted(KEYS.pos,        POS0);
-  const [invoices,   setInvoices]   = usePersisted(KEYS.invoices,   INVOICES0);
-  const [approvals,  setApprovals]  = usePersisted(KEYS.approvals,  APPROVALS0);
-  const [logs,       setLogs]       = usePersisted(KEYS.logs,       LOGS0);
+  const [vendors,    setVendors]    = usePersisted(STORE_KEYS.vendors,    VENDORS0);
+  const [rfqs,       setRfqs]       = usePersisted(STORE_KEYS.rfqs,       RFQS0);
+  const [quotations, setQuotations] = usePersisted(STORE_KEYS.quotations, QUOTES0);
+  const [pos,        setPOs]        = usePersisted(STORE_KEYS.pos,        POS0);
+  const [invoices,   setInvoices]   = usePersisted(STORE_KEYS.invoices,   INVOICES0);
+  const [approvals,  setApprovals]  = usePersisted(STORE_KEYS.approvals,  APPROVALS0);
+  const [logs,       setLogs]       = usePersisted(STORE_KEYS.logs,       LOGS0);
 
   const addLog = useCallback((action: string, detail: string, by: string) => {
-    setLogs(ls => {
-      const entry = { id: Date.now(), action, detail, by, at: new Date().toLocaleString(), type: "" };
-      return [entry, ...ls];
-    });
+    setLogs(ls => [
+      { id: Date.now(), action, detail, by, at: new Date().toLocaleString(), type: "" },
+      ...ls,
+    ]);
   }, [setLogs]);
 
-  /* expose a reset helper for development / demo reset */
   const resetStore = useCallback(() => {
-    Object.values(KEYS).forEach(k => localStorage.removeItem(k));
+    Object.values(STORE_KEYS).forEach(k => localStorage.removeItem(k));
     setVendors(VENDORS0);
     setRfqs(RFQS0);
     setQuotations(QUOTES0);
@@ -78,6 +136,7 @@ export function useStore() {
     setInvoices(INVOICES0);
     setApprovals(APPROVALS0);
     setLogs(LOGS0);
+    channel?.postMessage({ type: "reset" });
   }, []);
 
   return {

@@ -25,12 +25,17 @@ export const Badge = ({ s }: { s: string }) => {
 
 /* ── modal ── */
 export const Modal = ({ title, onClose, children, wide }: { title:string; onClose:()=>void; children:React.ReactNode; wide?:boolean }) => (
-  <div onClick={(e:any) => e.target===e.currentTarget && onClose()}
-    style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.4)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, padding:16 }}>
-    <div style={{ background:"#fff", borderRadius:8, padding:24, width:"100%", maxWidth:wide?680:500, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 8px 30px rgba(0,0,0,0.15)" }}>
+  <div
+    style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.45)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:200, padding:16 }}
+    onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+  >
+    <div
+      style={{ background:"#fff", borderRadius:8, padding:24, width:"100%", maxWidth:wide?680:500, maxHeight:"90vh", overflowY:"auto", boxShadow:"0 8px 30px rgba(0,0,0,0.15)" }}
+      onClick={(e) => e.stopPropagation()}
+    >
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
-        <h3 style={{ fontSize:17, fontWeight:700, color:"#111" }}>{title}</h3>
-        <button onClick={onClose} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:"#888", lineHeight:1 }}>×</button>
+        <h3 style={{ fontSize:17, fontWeight:700, color:"#111", margin:0 }}>{title}</h3>
+        <button onClick={onClose} style={{ background:"none", border:"none", fontSize:20, cursor:"pointer", color:"#888", lineHeight:1, padding:"0 4px" }}>×</button>
       </div>
       {children}
     </div>
@@ -38,7 +43,12 @@ export const Modal = ({ title, onClose, children, wide }: { title:string; onClos
 );
 
 /* ── form helpers ── */
-export const inp: React.CSSProperties = { width:"100%", padding:"7px 10px", border:"1px solid #d1d5db", borderRadius:6, fontSize:14, outline:"none", background:"#fff", boxSizing:"border-box" };
+// Returns a fresh style object every call so React always treats it as a new value
+export const inp: React.CSSProperties = {
+  width:"100%", padding:"8px 10px", border:"1px solid #d1d5db", borderRadius:6,
+  fontSize:14, outline:"none", background:"#fff", boxSizing:"border-box",
+  color:"#111", fontFamily:"inherit",
+};
 const lbl: React.CSSProperties = { fontSize:13, fontWeight:600, color:"#374151", marginBottom:3, display:"block" };
 
 export const FG = ({ label, children }: { label?:string; children:React.ReactNode }) => (

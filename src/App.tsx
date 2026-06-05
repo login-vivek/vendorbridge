@@ -2,7 +2,6 @@ import { useState } from "react";
 import { AuthProvider } from "./auth/AuthContext";
 import { useAuth } from "./auth/useAuth";
 import { useStore } from "./store/useStore";
-
 import { NAV_LABELS, NAV_ICONS } from "./data/seed";
 
 import Login      from "./components/Login";
@@ -18,59 +17,74 @@ import Invoices   from "./components/Invoices";
 import Logs       from "./components/Logs";
 import Reports    from "./components/Reports";
 
-/* ── role → nav pages ── */
+const PAGE_KEY = "vb_current_page";
+
 const ROLE_NAV: Record<string, string[]> = {
   "Procurement Officer": ["dashboard","vendors","rfqs","quotations","compare","pos","invoices","logs","reports"],
   "Vendor":              ["dashboard","quotations","pos","invoices"],
   "Manager":             ["dashboard","approvals","rfqs","pos","reports","logs"],
-  "Admin":               ["dashboard","vendors","rfqs","quotations","pos","invoices","logs","reports"],
+  "Admin":               ["dashboard","vendors","rfqs","quotations","compare","pos","invoices","logs","reports"],
 };
 
-/* ════════════════════════════════════════
-   Inner — rendered after auth context ready
-════════════════════════════════════════ */
-function Inner() {
+/* ══════════════════════════════════════════
+   Root — store lives here so it NEVER
+   remounts across login/logout cycles
+══════════════════════════════════════════ */
+export default function App() {
+  const store = useStore();
+  return (
+    <AuthProvider>
+      <Inner store={store} />
+    </AuthProvider>
+  );
+}
+
+/* ══════════════════════════════════════════
+   Inner
+══════════════════════════════════════════ */
+function Inner({ store }: { store: ReturnType<typeof useStore> }) {
   const { user, logout } = useAuth();
   const [authView, setAuthView] = useState<"login" | "signup">("login");
-  const [page, setPage] = useState("dashboard");
 
-  /* ── shared persistent store ── */
+  /* ── restore last page from localStorage so refresh keeps you on the same page ── */
+  const [page, setPageState] = useState<string>(() => {
+    try { return localStorage.getItem(PAGE_KEY) || "dashboard"; }
+    catch { return "dashboard"; }
+  });
+
+  const setPage = (p: string) => {
+    setPageState(p);
+    try { localStorage.setItem(PAGE_KEY, p); } catch { /* ignore */ }
+  };
+
   const {
-    vendors,    setVendors,
-    rfqs,       setRfqs,
+    vendors, setVendors,
+    rfqs,    setRfqs,
     quotations, setQuotations,
-    pos,        setPOs,
-    invoices,   setInvoices,
-    approvals,  setApprovals,
+    pos,     setPOs,
+    invoices, setInvoices,
+    approvals, setApprovals,
     logs,
     addLog,
     resetStore,
-  } = useStore();
+  } = store;
 
-  /* ── auth gate ── */
+  /* ── not logged in ── */
   if (!user) {
     if (authView === "signup")
       return <Signup onSuccess={() => setPage("dashboard")} onGoLogin={() => setAuthView("login")} />;
     return <Login onSuccess={() => setPage("dashboard")} onGoSignup={() => setAuthView("signup")} />;
   }
 
-  const navItems = ROLE_NAV[user.role] || ROLE_NAV["Procurement Officer"];
+  /* make sure the saved page is valid for this user's role */
+  const navItems = ROLE_NAV[user.role] ?? ROLE_NAV["Procurement Officer"];
+  const activePage = navItems.includes(page) ? page : "dashboard";
 
-  /* map auth user → appUser shape that legacy components expect */
-  const vendorId = user.role === "Vendor" ? (user.vendorId || "V001") : user.vendorId;
-  const appUser = {
-    ...user,
-    vendorId,
-    id: user.role === "Procurement Officer" ? "officer"
-      : user.role === "Vendor"  ? `vendor_${vendorId}`
-      : user.role === "Manager" ? "manager"
-      : "admin",
-  };
-
-  const shared = { vendors, rfqs, quotations, pos, invoices, approvals };
+  const appUser = { ...user };
+  const shared  = { vendors, rfqs, quotations, pos, invoices, approvals };
 
   const renderPage = () => {
-    switch (page) {
+    switch (activePage) {
       case "dashboard":  return <Dashboard  {...shared} user={appUser} onNav={setPage} />;
       case "vendors":    return <Vendors    vendors={vendors} setVendors={setVendors} addLog={addLog} />;
       case "rfqs":       return <RFQs       rfqs={rfqs} setRfqs={setRfqs} vendors={vendors} user={appUser} addLog={addLog} />;
@@ -100,14 +114,20 @@ function Inner() {
         <nav style={{ flex:1, padding:"8px 0", overflowY:"auto" }}>
           {navItems.map(key => (
             <button key={key} onClick={() => setPage(key)}
-              style={{ display:"flex", alignItems:"center", gap:10, width:"100%", padding:"9px 16px", background:page===key?"#eff6ff":"none", color:page===key?"#2563eb":"#374151", border:"none", textAlign:"left", cursor:"pointer", fontSize:14, fontWeight:page===key?600:400, borderLeft:page===key?"3px solid #2563eb":"3px solid transparent" }}>
+              style={{
+                display:"flex", alignItems:"center", gap:10, width:"100%",
+                padding:"9px 16px", border:"none", textAlign:"left", cursor:"pointer",
+                fontSize:14, background: activePage===key ? "#eff6ff" : "none",
+                color: activePage===key ? "#2563eb" : "#374151",
+                fontWeight: activePage===key ? 600 : 400,
+                borderLeft: activePage===key ? "3px solid #2563eb" : "3px solid transparent",
+              }}>
               <span style={{ fontSize:16 }}>{NAV_ICONS[key]}</span>
               {NAV_LABELS[key]}
             </button>
           ))}
         </nav>
 
-        {/* user card + logout */}
         <div style={{ padding:"12px 16px", borderTop:"1px solid #e5e7eb" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
             <div style={{ width:32, height:32, borderRadius:"50%", background:"#2563eb", color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontWeight:700, fontSize:12, flexShrink:0 }}>
@@ -118,31 +138,23 @@ function Inner() {
               <div style={{ fontSize:11, color:"#6b7280" }}>{user.role}</div>
             </div>
           </div>
-          <button onClick={() => { logout(); setPage("dashboard"); }}
-            style={{ width:"100%", padding:"6px", background:"#f3f4f6", border:"1px solid #e5e7eb", borderRadius:5, fontSize:13, cursor:"pointer", color:"#374151", marginBottom:6 }}>
+          <button
+            onClick={() => { logout(); setPageState("dashboard"); setAuthView("login"); }}
+            style={{ width:"100%", padding:"7px", background:"#f3f4f6", border:"1px solid #e5e7eb", borderRadius:6, fontSize:13, cursor:"pointer", color:"#374151", marginBottom:6 }}>
             Sign Out
           </button>
-          {/* dev helper — reset all data back to seed */}
-          <button onClick={() => { if (confirm("Reset all demo data?")) resetStore(); }}
-            style={{ width:"100%", padding:"4px", background:"none", border:"1px dashed #e5e7eb", borderRadius:5, fontSize:11, cursor:"pointer", color:"#9ca3af" }}>
+          <button
+            onClick={() => { if (window.confirm("Reset all demo data to defaults?")) resetStore(); }}
+            style={{ width:"100%", padding:"5px", background:"none", border:"1px dashed #d1d5db", borderRadius:5, fontSize:11, cursor:"pointer", color:"#9ca3af" }}>
             ↺ Reset demo data
           </button>
         </div>
       </aside>
 
-      {/* ── Main content ── */}
+      {/* ── Main ── */}
       <main style={{ flex:1, padding:24, overflowY:"auto" }}>
         {renderPage()}
       </main>
     </div>
-  );
-}
-
-/* ── root ── */
-export default function App() {
-  return (
-    <AuthProvider>
-      <Inner />
-    </AuthProvider>
   );
 }

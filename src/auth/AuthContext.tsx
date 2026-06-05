@@ -1,36 +1,48 @@
-import { createContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useState, useEffect, type ReactNode } from "react";
 
-/* ── types ── */
+/* ══════════════════════════════════════════
+   Types
+══════════════════════════════════════════ */
 export type Role = "Procurement Officer" | "Vendor" | "Manager" | "Admin";
 
 export interface AuthUser {
-  id: string;
-  name: string;
-  email: string;
-  role: Role;
-  avatar: string;
+  id:        string;
+  name:      string;
+  email:     string;
+  role:      Role;
+  avatar:    string;
   vendorId?: string;
 }
 
 interface AuthState {
-  user: AuthUser | null;
-  error: string;
-  login: (email: string, password: string) => Promise<boolean>;
-  signup: (name: string, email: string, password: string, role: Role) => Promise<boolean>;
-  logout: () => void;
+  user:       AuthUser | null;
+  error:      string;
+  login:      (email: string, password: string) => Promise<boolean>;
+  signup:     (name: string, email: string, password: string, role: Role) => Promise<boolean>;
+  logout:     () => void;
   clearError: () => void;
 }
 
-/* ── storage keys ── */
-const STORAGE_KEY = "vb_users";
+/* ══════════════════════════════════════════
+   Storage keys
+══════════════════════════════════════════ */
+const USERS_KEY   = "vb_users";
 const SESSION_KEY = "vb_session";
 
-/* ── helpers ── */
-function getUsers(): Record<string, { name: string; email: string; passwordHash: string; role: Role; vendorId?: string }> {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
+/* ══════════════════════════════════════════
+   Helpers
+══════════════════════════════════════════ */
+type UserRecord = {
+  name: string; email: string; passwordHash: string;
+  role: Role; userId: string; vendorId?: string;
+};
+
+function getUsers(): Record<string, UserRecord> {
+  try { return JSON.parse(localStorage.getItem(USERS_KEY) || "{}"); }
+  catch { return {}; }
 }
-function saveUsers(u: ReturnType<typeof getUsers>) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+function saveUsers(u: Record<string, UserRecord>) {
+  try { localStorage.setItem(USERS_KEY, JSON.stringify(u)); } catch { /* ignore */ }
 }
 
 function hashPw(pw: string): string {
@@ -43,72 +55,94 @@ function initials(name: string): string {
   return name.trim().split(/\s+/).map(w => w[0]).join("").toUpperCase().slice(0, 2);
 }
 
-function makeUser(email: string, record: ReturnType<typeof getUsers>[string]): AuthUser {
+function recordToUser(r: UserRecord): AuthUser {
   return {
-    id:       "u_" + email.replace(/[^a-z0-9]/gi, "_"),
-    name:     record.name,
-    email:    record.email,
-    role:     record.role,
-    avatar:   initials(record.name),
-    vendorId: record.vendorId,
+    id: r.userId, name: r.name, email: r.email,
+    role: r.role, avatar: initials(r.name), vendorId: r.vendorId,
   };
 }
 
-/* ── seed demo accounts once ── */
-function seedDemoAccounts() {
-  const users = getUsers();
-  const demos = [
-    { email:"officer@demo.com", name:"Kavya Reddy",  role:"Procurement Officer" as Role, pw:"demo1234" },
-    { email:"vendor@demo.com",  name:"Arjun Mehta",  role:"Vendor"              as Role, pw:"demo1234", vendorId:"V001" },
-    { email:"manager@demo.com", name:"Rohan Desai",  role:"Manager"             as Role, pw:"demo1234" },
-    { email:"admin@demo.com",   name:"Anita Sharma", role:"Admin"               as Role, pw:"demo1234" },
-  ];
-  let changed = false;
-  for (const d of demos) {
-    if (!users[d.email]) {
-      users[d.email] = { name:d.name, email:d.email, passwordHash:hashPw(d.pw), role:d.role, ...(d.vendorId ? { vendorId:d.vendorId } : {}) };
-      changed = true;
-    }
-  }
-  if (changed) saveUsers(users);
+/* ── validate a session object has all required fields ── */
+function isValidSession(obj: unknown): obj is AuthUser {
+  if (!obj || typeof obj !== "object") return false;
+  const u = obj as Record<string, unknown>;
+  return (
+    typeof u.id    === "string" && u.id.length > 0 &&
+    typeof u.name  === "string" && u.name.length > 0 &&
+    typeof u.email === "string" && u.email.length > 0 &&
+    typeof u.role  === "string" && u.role.length > 0 &&
+    typeof u.avatar === "string"
+  );
 }
 
-/* ── context ── */
+/* ── read saved session synchronously ── */
+function readSession(): AuthUser | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (isValidSession(parsed)) return parsed;
+    localStorage.removeItem(SESSION_KEY);
+    return null;
+  } catch {
+    localStorage.removeItem(SESSION_KEY);
+    return null;
+  }
+}
+
+/* ══════════════════════════════════════════
+   Seed demo accounts
+══════════════════════════════════════════ */
+function seedDemos() {
+  const users = getUsers();
+  const demos: (Omit<UserRecord, "passwordHash"> & { pw: string })[] = [
+    { email:"officer@demo.com", name:"Kavya Reddy",  role:"Procurement Officer", pw:"demo1234", userId:"officer"     },
+    { email:"vendor@demo.com",  name:"Arjun Mehta",  role:"Vendor",              pw:"demo1234", userId:"vendor_V001", vendorId:"V001" },
+    { email:"vendor2@demo.com", name:"Priya Shah",   role:"Vendor",              pw:"demo1234", userId:"vendor_V002", vendorId:"V002" },
+    { email:"vendor3@demo.com", name:"Rahul Patel",  role:"Vendor",              pw:"demo1234", userId:"vendor_V003", vendorId:"V003" },
+    { email:"manager@demo.com", name:"Rohan Desai",  role:"Manager",             pw:"demo1234", userId:"manager"     },
+    { email:"admin@demo.com",   name:"Anita Sharma", role:"Admin",               pw:"demo1234", userId:"admin"       },
+  ];
+  let dirty = false;
+  for (const d of demos) {
+    if (!users[d.email]) {
+      const { pw, ...rest } = d;
+      users[d.email] = { ...rest, passwordHash: hashPw(pw) };
+      dirty = true;
+    }
+  }
+  if (dirty) saveUsers(users);
+}
+
+/* ══════════════════════════════════════════
+   Context
+══════════════════════════════════════════ */
 export const AuthContext = createContext<AuthState>({
-  user: null,
-  error: "",
-  login: async () => false,
-  signup: async () => false,
-  logout: () => {},
-  clearError: () => {},
+  user: null, error: "",
+  login: async () => false, signup: async () => false,
+  logout: () => {}, clearError: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  /* restore session synchronously so there's no blank flash */
+  /* ── restore session SYNCHRONOUSLY so there's zero flash to login on refresh ── */
   const [user, setUser] = useState<AuthUser | null>(() => {
-    try {
-      seedDemoAccounts();
-      const saved = localStorage.getItem(SESSION_KEY);
-      return saved ? (JSON.parse(saved) as AuthUser) : null;
-    } catch {
-      return null;
-    }
+    seedDemos();
+    return readSession();
   });
   const [error, setError] = useState("");
 
-  /* keep demo accounts seeded on every mount */
-  useEffect(() => { seedDemoAccounts(); }, []);
+  useEffect(() => { seedDemos(); }, []);
 
   const login = async (email: string, password: string): Promise<boolean> => {
     setError("");
-    const key    = email.trim().toLowerCase();
-    const users  = getUsers();
+    const key = email.trim().toLowerCase();
+    const users = getUsers();
     const record = users[key];
     if (!record) { setError("No account found with that email."); return false; }
     if (record.passwordHash !== hashPw(password)) { setError("Incorrect password."); return false; }
-    const u = makeUser(key, record);
+    const u = recordToUser(record);
     setUser(u);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(u));
+    try { localStorage.setItem(SESSION_KEY, JSON.stringify(u)); } catch { /* ignore */ }
     return true;
   };
 
@@ -119,7 +153,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (password.length < 6) { setError("Password must be at least 6 characters."); return false; }
     const users = getUsers();
     if (users[key]) { setError("An account with this email already exists."); return false; }
-    users[key] = { name: name.trim(), email: key, passwordHash: hashPw(password), role };
+    const userId = role === "Vendor"
+      ? "vendor_" + key.replace(/[^a-z0-9]/gi, "_")
+      : "u_" + key.replace(/[^a-z0-9]/gi, "_");
+    users[key] = { name: name.trim(), email: key, passwordHash: hashPw(password), role, userId };
     saveUsers(users);
     return login(key, password);
   };
@@ -127,7 +164,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = () => {
     setUser(null);
     setError("");
-    localStorage.removeItem(SESSION_KEY);
+    try { localStorage.removeItem(SESSION_KEY); } catch { /* ignore */ }
+    try { localStorage.removeItem("vb_current_page"); } catch { /* ignore */ }
   };
 
   const clearError = () => setError("");

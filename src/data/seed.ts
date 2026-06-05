@@ -33,16 +33,18 @@ export const APPROVALS0 = [
 ];
 
 export const LOGS0 = [
-  { id:1, action:"RFQ Created",        detail:"RFQ-001: Office Laptops Q4",   by:"officer", at:"2024-12-01 10:00", type:"rfq"      },
-  { id:2, action:"Quotation Received", detail:"Q-001 from TechSupply Co.",     by:"vendor",  at:"2024-12-03 11:30", type:"quote"    },
-  { id:3, action:"Quotation Approved", detail:"APR-001 approved by manager",   by:"manager", at:"2024-12-05 09:15", type:"approval" },
-  { id:4, action:"PO Generated",       detail:"PO-001 created",                by:"officer", at:"2024-12-06 10:00", type:"po"       },
-  { id:5, action:"Invoice Sent",       detail:"INV-001 emailed to vendor",     by:"officer", at:"2024-12-07 14:00", type:"invoice"  },
+  { id:1, action:"RFQ Created",        detail:"RFQ-001: Office Laptops Q4",  by:"officer", at:"2024-12-01 10:00", type:"rfq"      },
+  { id:2, action:"Quotation Received", detail:"Q-001 from TechSupply Co.",    by:"vendor",  at:"2024-12-03 11:30", type:"quote"    },
+  { id:3, action:"Quotation Approved", detail:"APR-001 approved by manager",  by:"manager", at:"2024-12-05 09:15", type:"approval" },
+  { id:4, action:"PO Generated",       detail:"PO-001 created",               by:"officer", at:"2024-12-06 10:00", type:"po"       },
+  { id:5, action:"Invoice Sent",       detail:"INV-001 emailed to vendor",    by:"officer", at:"2024-12-07 14:00", type:"invoice"  },
 ];
 
 export const USERS = [
   { id:"officer",     name:"Kavya Reddy",  role:"Procurement Officer", avatar:"KR" },
-  { id:"vendor_V001", name:"Arjun Mehta",  role:"Vendor",              avatar:"AM", vendorId:"V001" },
+  { id:"vendor_V001", name:"Arjun Mehta",  role:"Vendor", avatar:"AM", vendorId:"V001" },
+  { id:"vendor_V002", name:"Priya Shah",   role:"Vendor", avatar:"PS", vendorId:"V002" },
+  { id:"vendor_V003", name:"Rahul Patel",  role:"Vendor", avatar:"RP", vendorId:"V003" },
   { id:"manager",     name:"Rohan Desai",  role:"Manager",             avatar:"RD" },
   { id:"admin",       name:"Anita Sharma", role:"Admin",               avatar:"AS" },
 ];
@@ -50,8 +52,10 @@ export const USERS = [
 export const NAV: Record<string, string[]> = {
   officer:     ["dashboard","vendors","rfqs","quotations","compare","pos","invoices","logs","reports"],
   vendor_V001: ["dashboard","quotations","pos","invoices"],
+  vendor_V002: ["dashboard","quotations","pos","invoices"],
+  vendor_V003: ["dashboard","quotations","pos","invoices"],
   manager:     ["dashboard","approvals","rfqs","pos","reports","logs"],
-  admin:       ["dashboard","vendors","rfqs","quotations","pos","invoices","logs","reports"],
+  admin:       ["dashboard","vendors","rfqs","quotations","compare","pos","invoices","logs","reports"],
 };
 
 export const NAV_LABELS: Record<string, string> = {

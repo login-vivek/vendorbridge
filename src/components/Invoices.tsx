@@ -1,17 +1,21 @@
 import { useState } from "react";
 import { fmt, fmtD, Modal, Tbl, TD, Badge, BtnPrimary, BtnSecondary, BtnGhost, PH } from "./ui";
 
-export default function Invoices({ invoices, setInvoices, vendors, user, addLog }: any) {
+export default function Invoices({ invoices, vendors, user, addLog, onUpdateInvoice }: any) {
   const [view, setView] = useState<any>(null);
   const myVid = user.vendorId;
   const list  = myVid ? invoices.filter((i: any) => i.vendorId === myVid) : invoices;
 
-  const send = (inv: any) => {
+  const send = async (inv: any) => {
     const v = vendors.find((x: any) => x.id === inv.vendorId);
-    setInvoices((is: any[]) => is.map(i => i.id === inv.id ? { ...i, status:"Sent" } : i));
-    addLog("Invoice Sent", `${inv.id} → ${v?.email}`, user.id);
-    alert(`📧 Invoice ${inv.id} sent to ${v?.email}!`);
-    if (view?.id === inv.id) setView({ ...inv, status:"Sent" });
+    try {
+      await onUpdateInvoice(inv.id, { status: "Sent" });
+      addLog("Invoice Sent", `${inv.id} → ${v?.email}`, user.id);
+      alert(`📧 Invoice ${inv.id} sent to ${v?.email}!`);
+      if (view?.id === inv.id) setView({ ...inv, status:"Sent" });
+    } catch (err: any) {
+      alert(err.message || "Failed to send invoice");
+    }
   };
 
   const print = (inv: any) => {
@@ -37,6 +41,8 @@ export default function Invoices({ invoices, setInvoices, vendors, user, addLog 
     addLog("Invoice Printed", inv.id, user.id);
   };
 
+  const canAct = user.role === "Procurement Officer" || user.role === "Admin";
+
   return (
     <div>
       <PH title="Invoices" sub={`${list.length} total`} />
@@ -58,14 +64,10 @@ export default function Invoices({ invoices, setInvoices, vendors, user, addLog 
                 <TD>
                   <div style={{ display:"flex", gap:5 }}>
                     <BtnGhost onClick={() => setView(inv)}>View</BtnGhost>
-                    {(user.id === "officer" || user.id === "admin") && (
-                      <>
-                        <BtnGhost onClick={() => print(inv)}>Print</BtnGhost>
-                        {inv.status !== "Sent" && (
-                          <BtnGhost onClick={() => send(inv)} style={{ color:"#16a34a", borderColor:"#bbf7d0" }}>Send Email</BtnGhost>
-                        )}
-                      </>
-                    )}
+                    {canAct && <>
+                      <BtnGhost onClick={() => print(inv)}>Print</BtnGhost>
+                      {inv.status !== "Sent" && <BtnGhost onClick={() => send(inv)} style={{ color:"#16a34a", borderColor:"#bbf7d0" }}>Send Email</BtnGhost>}
+                    </>}
                   </div>
                 </TD>
               </tr>
@@ -96,30 +98,22 @@ export default function Invoices({ invoices, setInvoices, vendors, user, addLog 
                   <div style={{ color:"#6b7280", fontFamily:"monospace" }}>GST: {v?.gst}</div>
                 </div>
                 <table style={{ width:"100%", borderCollapse:"collapse", fontSize:14, marginBottom:16 }}>
-                  <thead>
-                    <tr style={{ background:"#f9fafb" }}>
-                      {["Product","Qty","Subtotal","Tax 18%","Total"].map(h => (
-                        <th key={h} style={{ padding:"9px 12px", textAlign:"left", border:"1px solid #e5e7eb" }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr>
-                      <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb" }}>{view.product}</td>
-                      <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb" }}>{view.quantity}</td>
-                      <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb" }}>{fmt(view.subtotal)}</td>
-                      <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb" }}>{fmt(view.tax)}</td>
-                      <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb", fontWeight:700, color:"#16a34a", fontSize:16 }}>{fmt(view.total)}</td>
-                    </tr>
-                  </tbody>
+                  <thead><tr style={{ background:"#f9fafb" }}>
+                    {["Product","Qty","Subtotal","Tax 18%","Total"].map(h => <th key={h} style={{ padding:"9px 12px", textAlign:"left", border:"1px solid #e5e7eb" }}>{h}</th>)}
+                  </tr></thead>
+                  <tbody><tr>
+                    <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb" }}>{view.product}</td>
+                    <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb" }}>{view.quantity}</td>
+                    <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb" }}>{fmt(view.subtotal)}</td>
+                    <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb" }}>{fmt(view.tax)}</td>
+                    <td style={{ padding:"10px 12px", border:"1px solid #e5e7eb", fontWeight:700, color:"#16a34a", fontSize:16 }}>{fmt(view.total)}</td>
+                  </tr></tbody>
                 </table>
                 <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
                   <Badge s={view.status} />
                   <div style={{ display:"flex", gap:8 }}>
                     <BtnSecondary onClick={() => print(view)}>🖨 Print</BtnSecondary>
-                    {view.status !== "Sent" && (user.id === "officer" || user.id === "admin") && (
-                      <BtnPrimary onClick={() => send(view)}>📧 Send Email</BtnPrimary>
-                    )}
+                    {view.status !== "Sent" && canAct && <BtnPrimary onClick={() => send(view)}>📧 Send Email</BtnPrimary>}
                   </div>
                 </div>
               </div>

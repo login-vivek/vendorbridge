@@ -1,29 +1,32 @@
 import { Router } from "express";
-import supabase from "../supabase.js";
+import Invoice from "../models/Invoice.js";
+import PurchaseOrder from "../models/PurchaseOrder.js";
+import Log from "../models/Log.js";
+import { protect } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET /api/invoices
-router.get("/", async (req, res) => {
-  let query = supabase.from("invoices").select("*").order("created_at", { ascending: false });
-  if (req.query.vendorId) query = query.eq("vendor_id", req.query.vendorId);
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+router.get("/", protect, async (req, res) => {
+  const filter = {};
+  if (req.query.vendorId) filter.vendorId = req.query.vendorId;
+  const list = await Invoice.find(filter).sort({ createdAt: -1 });
+  res.json(list);
 });
 
-// POST /api/invoices
-router.post("/", async (req, res) => {
-  const { data, error } = await supabase.from("invoices").insert(req.body).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(data);
+router.post("/", protect, async (req, res) => {
+  try {
+    const inv = await Invoice.create(req.body);
+    await PurchaseOrder.findByIdAndUpdate(req.body.poId, { status: "Invoiced" });
+    await Log.create({ action: "Invoice Generated", detail: inv._id.toString(), by: req.user._id.toString(), type: "invoice" });
+    res.status(201).json(inv);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// PATCH /api/invoices/:id  (e.g. mark as sent)
-router.patch("/:id", async (req, res) => {
-  const { data, error } = await supabase.from("invoices").update(req.body).eq("id", req.params.id).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
+router.patch("/:id", protect, async (req, res) => {
+  try {
+    const inv = await Invoice.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(inv);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 export default router;

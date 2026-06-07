@@ -1,29 +1,21 @@
 import { Router } from "express";
-import supabase from "../supabase.js";
+import PurchaseOrder from "../models/PurchaseOrder.js";
+import { protect } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET /api/pos
-router.get("/", async (req, res) => {
-  let query = supabase.from("purchase_orders").select("*").order("created_at", { ascending: false });
-  if (req.query.vendorId) query = query.eq("vendor_id", req.query.vendorId);
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+router.get("/", protect, async (req, res) => {
+  const filter = {};
+  if (req.query.vendorId) filter.vendorId = req.query.vendorId;
+  const list = await PurchaseOrder.find(filter).sort({ createdAt: -1 });
+  res.json(list);
 });
 
-// POST /api/pos
-router.post("/", async (req, res) => {
-  const { data, error } = await supabase.from("purchase_orders").insert(req.body).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(data);
-});
-
-// PATCH /api/pos/:id
-router.patch("/:id", async (req, res) => {
-  const { data, error } = await supabase.from("purchase_orders").update(req.body).eq("id", req.params.id).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
+router.patch("/:id", protect, async (req, res) => {
+  try {
+    const po = await PurchaseOrder.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(po);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 export default router;

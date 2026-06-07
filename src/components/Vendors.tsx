@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { inp, FG, Row2, Modal, Tbl, TD, Badge, BtnPrimary, BtnSecondary, BtnGhost, PH } from "./ui";
 
-export default function Vendors({ vendors, setVendors, addLog }: any) {
+export default function Vendors({ vendors, onCreateVendor, onUpdateVendor }: any) {
   const [q, setQ]       = useState("");
   const [show, setShow] = useState(false);
   const [edit, setEdit] = useState<any>(null);
@@ -13,16 +13,13 @@ export default function Vendors({ vendors, setVendors, addLog }: any) {
     v.category.toLowerCase().includes(q.toLowerCase())
   );
 
-  const save = () => {
+  const save = async () => {
     if (!f.name || !f.email) return alert("Name and email required");
-    if (edit) {
-      setVendors((vs: any[]) => vs.map(v => v.id === edit.id ? { ...v, ...f } : v));
-    } else {
-      const id = "V" + String(vendors.length + 1).padStart(3, "0");
-      setVendors((vs: any[]) => [...vs, { id, rating:4.0, status:"Active", ...f }]);
-      addLog("Vendor Registered", f.name, "admin");
-    }
-    setShow(false); setEdit(null); setF(blank);
+    try {
+      if (edit) { await onUpdateVendor(edit.id, f); }
+      else      { await onCreateVendor(f); }
+      setShow(false); setEdit(null); setF(blank);
+    } catch (err: any) { alert(err.message || "Failed to save vendor"); }
   };
 
   return (
@@ -47,7 +44,7 @@ export default function Vendors({ vendors, setVendors, addLog }: any) {
               <TD>
                 <div style={{ display:"flex", gap:6 }}>
                   <BtnGhost onClick={() => { setF({...v}); setEdit(v); setShow(true); }}>Edit</BtnGhost>
-                  <BtnGhost onClick={() => setVendors((vs: any[]) => vs.map(x => x.id === v.id ? { ...x, status: x.status === "Active" ? "Inactive" : "Active" } : x))}>
+                  <BtnGhost onClick={() => onUpdateVendor(v.id, { status: v.status === "Active" ? "Inactive" : "Active" })}>
                     {v.status === "Active" ? "Disable" : "Enable"}
                   </BtnGhost>
                 </div>

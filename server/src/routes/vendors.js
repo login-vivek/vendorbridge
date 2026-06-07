@@ -1,34 +1,32 @@
 import { Router } from "express";
-import supabase from "../supabase.js";
+import Vendor from "../models/Vendor.js";
+import { protect } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET /api/vendors
-router.get("/", async (_req, res) => {
-  const { data, error } = await supabase.from("vendors").select("*").order("name");
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+router.get("/", protect, async (_req, res) => {
+  const vendors = await Vendor.find().sort({ name: 1 });
+  res.json(vendors);
 });
 
-// GET /api/vendors/:id
-router.get("/:id", async (req, res) => {
-  const { data, error } = await supabase.from("vendors").select("*").eq("id", req.params.id).single();
-  if (error) return res.status(404).json({ error: "Vendor not found" });
-  res.json(data);
+router.get("/:id", protect, async (req, res) => {
+  const vendor = await Vendor.findById(req.params.id);
+  if (!vendor) return res.status(404).json({ error: "Not found" });
+  res.json(vendor);
 });
 
-// POST /api/vendors
-router.post("/", async (req, res) => {
-  const { data, error } = await supabase.from("vendors").insert(req.body).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(data);
+router.post("/", protect, async (req, res) => {
+  try {
+    const vendor = await Vendor.create(req.body);
+    res.status(201).json(vendor);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// PATCH /api/vendors/:id
-router.patch("/:id", async (req, res) => {
-  const { data, error } = await supabase.from("vendors").update(req.body).eq("id", req.params.id).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
+router.patch("/:id", protect, async (req, res) => {
+  try {
+    const vendor = await Vendor.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(vendor);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 export default router;

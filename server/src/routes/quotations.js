@@ -1,30 +1,31 @@
 import { Router } from "express";
-import supabase from "../supabase.js";
+import Quotation from "../models/Quotation.js";
+import RFQ from "../models/RFQ.js";
+import { protect } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET /api/quotations?rfqId=xxx
-router.get("/", async (req, res) => {
-  let query = supabase.from("quotations").select("*").order("submitted_at", { ascending: false });
-  if (req.query.rfqId) query = query.eq("rfq_id", req.query.rfqId);
-  if (req.query.vendorId) query = query.eq("vendor_id", req.query.vendorId);
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+router.get("/", protect, async (req, res) => {
+  const filter = {};
+  if (req.query.rfqId)    filter.rfqId    = req.query.rfqId;
+  if (req.query.vendorId) filter.vendorId = req.query.vendorId;
+  const list = await Quotation.find(filter).sort({ createdAt: -1 });
+  res.json(list);
 });
 
-// POST /api/quotations
-router.post("/", async (req, res) => {
-  const { data, error } = await supabase.from("quotations").insert(req.body).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(data);
+router.post("/", protect, async (req, res) => {
+  try {
+    const q = await Quotation.create(req.body);
+    await RFQ.findByIdAndUpdate(req.body.rfqId, { status: "Quoted" });
+    res.status(201).json(q);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// PATCH /api/quotations/:id
-router.patch("/:id", async (req, res) => {
-  const { data, error } = await supabase.from("quotations").update(req.body).eq("id", req.params.id).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
+router.patch("/:id", protect, async (req, res) => {
+  try {
+    const q = await Quotation.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(q);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 export default router;

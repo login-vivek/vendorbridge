@@ -1,35 +1,20 @@
 import { useState } from "react";
-import { uid, fmt, inp, FG, Badge, BtnSuccess, BtnDanger, PH } from "./ui";
+import { fmt, inp, FG, Badge, BtnSuccess, BtnDanger, PH } from "./ui";
 
-export default function Approvals({ approvals, setApprovals, quotations, setQuotations, rfqs, vendors, setPOs, user, addLog }: any) {
+export default function Approvals({ approvals, quotations, rfqs, vendors, onUpdateApproval }: any) {
   const [sel, setSel]         = useState<any>(null);
   const [remarks, setRemarks] = useState("");
+  const [busy, setBusy]       = useState(false);
 
-  const decide = (apr: any, decision: string) => {
-    const updated = {
-      ...apr, status:decision, remarks, approvedBy:user.id, approvedAt:new Date().toLocaleString(),
-      timeline:[...apr.timeline, { action:decision, by:user.id, at:new Date().toLocaleString() }],
-    };
-    setApprovals((as: any[]) => as.map(a => a.id === apr.id ? updated : a));
-    setQuotations((qs: any[]) => qs.map(q => q.id === apr.quotationId ? { ...q, status:decision } : q));
-
-    if (decision === "Approved") {
-      const q   = quotations.find((x: any) => x.id === apr.quotationId);
-      const rfq = rfqs.find((r: any) => r.id === apr.rfqId);
-      if (q && rfq) {
-        const po = {
-          id:uid("PO"), rfqId:rfq.id, quotationId:q.id, vendorId:q.vendorId,
-          product:rfq.product, quantity:rfq.quantity, unitPrice:q.unitPrice,
-          subtotal:q.totalPrice, tax:Math.round(q.totalPrice * 0.18),
-          total:q.totalPrice + Math.round(q.totalPrice * 0.18),
-          status:"Active", createdAt:new Date().toISOString().split("T")[0],
-        };
-        setPOs((ps: any[]) => [po, ...ps]);
-        addLog("PO Generated", po.id, user.id);
-      }
-    }
-    addLog(`Quotation ${decision}`, apr.quotationId, user.id);
-    setSel(null); setRemarks("");
+  const decide = async (apr: any, decision: string) => {
+    setBusy(true);
+    try {
+      await onUpdateApproval(apr.id, { status: decision, remarks });
+      setSel(null);
+      setRemarks("");
+    } catch (err: any) {
+      alert(err.message || "Failed to update approval");
+    } finally { setBusy(false); }
   };
 
   const pending = approvals.filter((a: any) => a.status === "Pending");
@@ -90,7 +75,7 @@ export default function Approvals({ approvals, setApprovals, quotations, setQuot
                 </div>
                 <div style={{ marginBottom:14 }}>
                   <div style={{ fontWeight:600, fontSize:13, marginBottom:8 }}>Timeline</div>
-                  {sel.timeline.map((t: any, i: number) => (
+                  {(sel.timeline || []).map((t: any, i: number) => (
                     <div key={i} style={{ display:"flex", gap:8, marginBottom:6, fontSize:13 }}>
                       <div style={{ width:7, height:7, borderRadius:"50%", background:"#2563eb", marginTop:4, flexShrink:0 }} />
                       <div><span style={{ color:"#111" }}>{t.action}</span> <span style={{ color:"#9ca3af" }}>— {t.at} · {t.by}</span></div>
@@ -100,9 +85,9 @@ export default function Approvals({ approvals, setApprovals, quotations, setQuot
                 <FG label="Remarks">
                   <textarea style={{...inp, resize:"vertical"}} rows={2} value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Add your remarks…" />
                 </FG>
-                <div style={{ display:"flex", gap:8, marginTop:10 }}>
-                  <BtnSuccess onClick={() => decide(sel, "Approved")} style={{ flex:1 }}>✓ Approve</BtnSuccess>
-                  <BtnDanger  onClick={() => decide(sel, "Rejected")} style={{ flex:1 }}>✗ Reject</BtnDanger>
+                <div style={{ display:"flex", gap:8, marginTop:10, opacity: busy ? 0.7 : 1 }}>
+                  <BtnSuccess onClick={() => decide(sel, "Approved")} style={{ flex:1 }}>{busy ? "…" : "✓ Approve"}</BtnSuccess>
+                  <BtnDanger  onClick={() => decide(sel, "Rejected")} style={{ flex:1 }}>{busy ? "…" : "✗ Reject"}</BtnDanger>
                 </div>
               </div>
             );

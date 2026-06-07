@@ -1,20 +1,19 @@
 import { Router } from "express";
-import supabase from "../supabase.js";
+import Log from "../models/Log.js";
+import { protect } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET /api/logs
-router.get("/", async (_req, res) => {
-  const { data, error } = await supabase.from("activity_logs").select("*").order("created_at", { ascending: false }).limit(200);
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+router.get("/", protect, async (_req, res) => {
+  const logs = await Log.find().sort({ createdAt: -1 }).limit(200);
+  res.json(logs);
 });
 
-// POST /api/logs
-router.post("/", async (req, res) => {
-  const { data, error } = await supabase.from("activity_logs").insert(req.body).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(data);
+router.post("/", protect, async (req, res) => {
+  try {
+    const log = await Log.create({ ...req.body, by: req.user._id.toString() });
+    res.status(201).json(log);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 export default router;

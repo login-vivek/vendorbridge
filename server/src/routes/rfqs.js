@@ -1,34 +1,26 @@
 import { Router } from "express";
-import supabase from "../supabase.js";
+import RFQ from "../models/RFQ.js";
+import { protect } from "../middleware/auth.js";
 
 const router = Router();
 
-// GET /api/rfqs
-router.get("/", async (_req, res) => {
-  const { data, error } = await supabase.from("rfqs").select("*").order("created_at", { ascending: false });
-  if (error) return res.status(500).json({ error: error.message });
-  res.json(data);
+router.get("/", protect, async (_req, res) => {
+  const rfqs = await RFQ.find().sort({ createdAt: -1 });
+  res.json(rfqs);
 });
 
-// GET /api/rfqs/:id
-router.get("/:id", async (req, res) => {
-  const { data, error } = await supabase.from("rfqs").select("*").eq("id", req.params.id).single();
-  if (error) return res.status(404).json({ error: "RFQ not found" });
-  res.json(data);
+router.post("/", protect, async (req, res) => {
+  try {
+    const rfq = await RFQ.create({ ...req.body, createdBy: req.user._id.toString() });
+    res.status(201).json(rfq);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
-// POST /api/rfqs
-router.post("/", async (req, res) => {
-  const { data, error } = await supabase.from("rfqs").insert(req.body).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.status(201).json(data);
-});
-
-// PATCH /api/rfqs/:id  (e.g. close an RFQ)
-router.patch("/:id", async (req, res) => {
-  const { data, error } = await supabase.from("rfqs").update(req.body).eq("id", req.params.id).select().single();
-  if (error) return res.status(400).json({ error: error.message });
-  res.json(data);
+router.patch("/:id", protect, async (req, res) => {
+  try {
+    const rfq = await RFQ.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    res.json(rfq);
+  } catch (err) { res.status(400).json({ error: err.message }); }
 });
 
 export default router;

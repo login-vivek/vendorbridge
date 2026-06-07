@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>VendorBridge</title>
+  <script>
+    // Redirect to the app root on 404 (SPA fallback for GitHub Pages)
+    var seg = window.location.pathname.replace('/vendorbridge', '');
+    window.location.replace('/vendorbridge/' + (seg ? '?p=' + seg : ''));
+  </script>
+</head>
+<body>Redirecting…</body>
+</html>

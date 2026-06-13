@@ -15,7 +15,21 @@ import logRoutes        from "./routes/logs.js";
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(cors({ origin: process.env.CLIENT_URL || "*" }));
+app.use(cors({
+  origin: (origin, cb) => {
+    // allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) return cb(null, true);
+    // allow localhost, vercel.app, and onrender.com
+    if (
+      origin.includes("localhost") ||
+      origin.includes("vercel.app") ||
+      origin.includes("onrender.com") ||
+      origin === process.env.CLIENT_URL
+    ) return cb(null, true);
+    cb(new Error("Not allowed by CORS"));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));

@@ -30,5 +30,5 @@ app.use("/api/invoices",   invoiceRoutes);
 app.use("/api/logs",       logRoutes);
 
 connectDB().then(() => {
-  app.listen(PORT, () => console.log(`🚀 VendorBridge API → http://localhost:${PORT}`));
+  app.listen(PORT, '0.0.0.0', () => console.log(`🚀 VendorBridge API → http://localhost:${PORT}`));
 });

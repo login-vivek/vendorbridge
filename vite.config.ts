@@ -8,4 +8,12 @@ export default defineConfig({
     react(),
     babel({ presets: [reactCompilerPreset()] })
   ],
+  server: {
+    host: true,
+  },
+  css: {
+    postcss: {
+      plugins: [],
+    },
+  },
 })
